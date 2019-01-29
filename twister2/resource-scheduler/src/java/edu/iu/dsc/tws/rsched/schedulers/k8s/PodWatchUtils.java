@@ -25,6 +25,7 @@ import io.kubernetes.client.ApiClient;
 import io.kubernetes.client.ApiException;
 import io.kubernetes.client.Configuration;
 import io.kubernetes.client.apis.CoreV1Api;
+import io.kubernetes.client.models.V1ContainerStatus;
 import io.kubernetes.client.models.V1Event;
 import io.kubernetes.client.models.V1Pod;
 import io.kubernetes.client.models.V1PodList;
@@ -299,6 +300,48 @@ public final class PodWatchUtils {
     }
 
     return null;
+  }
+
+  /**
+   * get container restart count
+   * if it is zero, it means it is started first time
+   * if it is more than zero, it means, it is coming from failure
+   * return -1 if it can not get the container restart count
+   */
+  public static int getContainerRestartCount(String namespace,
+                                              String jobName,
+                                              String podName,
+                                              String containerName) {
+    if (apiClient == null || coreApi == null) {
+      createApiInstances();
+    }
+
+    String workerRoleLabel = KubernetesUtils.createWorkerRoleLabelWithKey(jobName);
+    LOG.fine("Getting the pod list for the job: " + jobName);
+    V1PodList list = null;
+    try {
+      list = coreApi.listNamespacedPod(
+          namespace, null, null, null, null, workerRoleLabel, null, null, null, null);
+    } catch (ApiException e) {
+      String logMessage = "Exception when getting the pod list: \n"
+          + "exCode: " + e.getCode() + "\n"
+          + "responseBody: " + e.getResponseBody();
+      LOG.log(Level.SEVERE, logMessage, e);
+      throw new RuntimeException(e);
+    }
+
+    LOG.fine("Number of pods in the received list: " + list.getItems().size());
+    for (V1Pod pod : list.getItems()) {
+      if (podName.equals(pod.getMetadata().getName())) {
+        for (V1ContainerStatus containerStatus: pod.getStatus().getContainerStatuses()) {
+          if (containerName.equals(containerStatus.getName())) {
+            return containerStatus.getRestartCount();
+          }
+        }
+      }
+    }
+
+    return -1;
   }
 
   /**

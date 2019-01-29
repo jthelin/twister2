@@ -137,6 +137,11 @@ public final class K8sWorkerStarter {
         + "hostIP(nodeIP): " + hostIP + "\n"
     );
 
+    // get restart count
+    int restartCount = PodWatchUtils.getContainerRestartCount(
+        KubernetesContext.namespace(config), jobName, podName, containerName);
+    LOG.info("Container Restart Count: " + restartCount);
+
     // construct JMWorkerAgent
     jobMasterAgent = JMWorkerAgent.createJMWorkerAgent(config, workerInfo, jobMasterIP,
         JobMasterContext.jobMasterPort(config), job.getNumberOfWorkers());
