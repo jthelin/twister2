@@ -259,7 +259,7 @@ public final class JMWorkerAgent {
   /**
    * start the Job Master Client in a Thread
    */
-  public Thread startThreaded() {
+  public Thread startThreaded(boolean fromFailure) {
     // first initialize the client, connect to Job Master
     init();
 
@@ -271,7 +271,7 @@ public final class JMWorkerAgent {
 
     jmThread.start();
 
-    boolean registered = registerWorker();
+    boolean registered = registerWorker(fromFailure);
     if (!registered) {
       throw new RuntimeException("Could not register JobMaster with Dashboard. Exiting .....");
     }
@@ -282,13 +282,13 @@ public final class JMWorkerAgent {
   /**
    * start the Job Master Client in a blocking call
    */
-  public void startBlocking() {
+  public void startBlocking(boolean fromFailure) {
     // first initialize the client, connect to Job Master
     init();
 
     startLooping();
 
-    boolean registered = registerWorker();
+    boolean registered = registerWorker(fromFailure);
     if (!registered) {
       throw new RuntimeException("Could not register JobMaster with Dashboard. Exiting .....");
     }
@@ -386,11 +386,12 @@ public final class JMWorkerAgent {
    * send RegisterWorker message to Job Master
    * put WorkerInfo in this message
    */
-  private boolean registerWorker() {
+  private boolean registerWorker(boolean fromFailure) {
 
     JobMasterAPI.RegisterWorker registerWorker = JobMasterAPI.RegisterWorker.newBuilder()
         .setWorkerID(thisWorker.getWorkerID())
         .setWorkerInfo(thisWorker)
+        .setFromFailure(fromFailure)
         .build();
 
     LOG.fine("Sending RegisterWorker message: \n" + registerWorker);

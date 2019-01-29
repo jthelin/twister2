@@ -65,6 +65,9 @@ public class WorkerMonitor implements MessageHandler {
   private boolean jobMasterAssignsWorkerIDs;
   private int numberOfWorkers;
 
+  // a flag to shaw whether allWorkersRegistered message is sent
+  private boolean sentAllWorkersRegistered = false;
+
   private TreeMap<Integer, WorkerWithState> workers;
   private HashMap<Integer, RequestID> waitList;
 
@@ -93,24 +96,6 @@ public class WorkerMonitor implements MessageHandler {
     return id;
   }
 
-  /**
-   * if this worker already registered with IP and port
-   * return the id, otherwise, return -1
-   * if a worker is already registered and trying to register again,
-   * it means that it is coming from failure
-   * <p>
-   * we assume that IP:port pair does not change after failure
-   */
-  private int getRegisteredWorkerID(String workerIP, int port) {
-    for (WorkerWithState workerWithState : workers.values()) {
-      if (workerIP.equals(workerWithState.getIp()) && port == workerWithState.getPort()) {
-        return workerWithState.getWorkerID();
-      }
-    }
-
-    return -1;
-  }
-
   @Override
   public void onMessage(RequestID id, int workerId, Message message) {
 
@@ -119,8 +104,12 @@ public class WorkerMonitor implements MessageHandler {
       pingMessageReceived(id, ping);
 
     } else if (message instanceof JobMasterAPI.RegisterWorker) {
-      JobMasterAPI.RegisterWorker rwMessage = (JobMasterAPI.RegisterWorker) message;
-      registerWorkerMessageReceived(id, workerId, rwMessage);
+      JobMasterAPI.RegisterWorker registerMessage = (JobMasterAPI.RegisterWorker) message;
+      if (registerMessage.getFromFailure()) {
+        reregisterWorkerMessageReceived(id, registerMessage);
+      } else {
+        registerWorkerMessageReceived(id, registerMessage);
+      }
 
     } else if (message instanceof JobMasterAPI.WorkerStateChange) {
       JobMasterAPI.WorkerStateChange wscMessage = (JobMasterAPI.WorkerStateChange) message;
@@ -166,30 +155,10 @@ public class WorkerMonitor implements MessageHandler {
 
   }
 
-  private void registerWorkerMessageReceived(RequestID id, int workerId,
-                                             JobMasterAPI.RegisterWorker message) {
+  private void registerWorkerMessageReceived(RequestID id, JobMasterAPI.RegisterWorker message) {
 
     LOG.fine("RegisterWorker message received: \n" + message);
     JobMasterAPI.WorkerInfo workerInfo = message.getWorkerInfo();
-
-    // if it is coming from failure
-    // update the worker status and return
-    int registeredWorkerID = getRegisteredWorkerID(workerInfo.getWorkerIP(), workerInfo.getPort());
-    if (registeredWorkerID >= 0) {
-      // update the worker status in the worker list
-      workers.get(registeredWorkerID).addWorkerState(JobMasterAPI.WorkerState.STARTING);
-      LOG.info("WorkerID: " + registeredWorkerID + " joined from failure.");
-
-      // send the response message
-      sendRegisterWorkerResponse(id, workerInfo.getWorkerID(), true);
-
-      // send worker registration message to dashboard
-      if (dashClient != null) {
-        dashClient.registerWorker(workerInfo);
-      }
-
-      return;
-    }
 
     // if job master assigns workerIDs, get new id and update it in WorkerInfo
     // also set in RRServer
@@ -202,13 +171,16 @@ public class WorkerMonitor implements MessageHandler {
     // if it is not coming from failure but workerID already registered
     // something wrong
     if (workers.containsKey(workerInfo.getWorkerID())) {
-      LOG.severe("Second RegisterWorker message received for workerID: " + workerInfo.getWorkerID()
-          + "\nIgnoring this RegisterWorker message. "
+      LOG.severe("Previously a worker registered with workerID: " + workerInfo.getWorkerID() + ". "
+          + "Ignoring this RegisterWorker message. "
           + "\nReceived Message: " + message
           + "\nPrevious Worker with that workerID: " + workers.get(workerInfo.getWorkerID()));
 
-      // send the response message
-      sendRegisterWorkerResponse(id, workerInfo.getWorkerID(), false);
+      String failMessage = "Previously a worker registered with workerID: "
+          + workerInfo.getWorkerID();
+
+      // send fail response message
+      sendRegisterWorkerResponse(id, workerInfo.getWorkerID(), false, failMessage);
 
       return;
     }
@@ -219,7 +191,7 @@ public class WorkerMonitor implements MessageHandler {
     workers.put(worker.getWorkerID(), worker);
 
     // send success response message
-    sendRegisterWorkerResponse(id, worker.getWorkerID(), true);
+    sendRegisterWorkerResponse(id, worker.getWorkerID(), true, null);
 
     // send worker registration message to dashboard
     if (dashClient != null) {
@@ -232,6 +204,75 @@ public class WorkerMonitor implements MessageHandler {
       sendListWorkersResponseToWaitList();
 
       sendWorkersJoinedMessage();
+    }
+  }
+
+  /**
+   * register message received after failure
+   */
+  private void reregisterWorkerMessageReceived(RequestID id, JobMasterAPI.RegisterWorker message) {
+
+    LOG.fine("RegisterWorker message received: \n" + message);
+    JobMasterAPI.WorkerInfo workerInfo = message.getWorkerInfo();
+
+    // check whether the worker has a valid ID
+    // if the worker ID is not valid, registration fails
+    if (message.getWorkerID() < 0) {
+      // send the response message
+      String failMessage = "Registration failed. WorkerID = " + message.getWorkerID() + ". "
+          + "WorkerID has to be the previous valid workerID when coming from failure.";
+      sendRegisterWorkerResponse(id, workerInfo.getWorkerID(), false, failMessage);
+
+      LOG.warning("A worker tried to register after failure but did not have a valid workerID."
+          + " Provided workerID = " + message.getWorkerID());
+
+      return;
+    }
+
+    // whether this is a new registration, or re-registering failed one
+    boolean newRegistration = false;
+
+    WorkerWithState workerWithState = workers.get(message.getWorkerID());
+    // This worker should exist in workers list since it is coming from failure
+    // but, we still register it even if it did not register previously
+    // it may have failed in the starting phase and restarted
+    if (workerWithState == null) {
+      workerWithState = new WorkerWithState(workerInfo);
+      newRegistration = true;
+
+      LOG.warning("A worker registered after failure, but it did not register previously. "
+          + "workerID = " + message.getWorkerID());
+    }
+    workerWithState.addWorkerState(JobMasterAPI.WorkerState.RESTARTING);
+    workers.put(message.getWorkerID(), workerWithState);
+
+    // send success response message
+    sendRegisterWorkerResponse(id, workerInfo.getWorkerID(), true, null);
+
+    LOG.info("Worker[" + message.getWorkerID() + "] registered after failure.");
+
+    // send worker registration message to dashboard
+    // TODO: modify register message to Dashboard
+    //       add fromFailure field
+    if (dashClient != null) {
+      dashClient.registerWorker(workerInfo);
+    }
+
+    // if this is a new registration and all workers joined, inform all workers
+    if (newRegistration && allWorkersRegistered()) {
+      LOG.info("All " + workers.size() + " workers joined the job.");
+      sendListWorkersResponseToWaitList();
+      sendWorkersJoinedMessage();
+      return;
+    }
+
+    // TODO: we need to let all workers and the driver know that a worker joined after failure
+    // if this is not a new registration and all workers joined, inform this worker only
+    if (!newRegistration && allWorkersRegistered()) {
+
+      JobMasterAPI.WorkersJoined joinedMessage = constructWorkersJoinedMessage();
+      rrServer.sendMessage(joinedMessage, message.getWorkerID());
+      return;
     }
   }
 
@@ -562,12 +603,16 @@ public class WorkerMonitor implements MessageHandler {
     return true;
   }
 
-  private void sendRegisterWorkerResponse(RequestID id, int workerID, boolean result) {
+  private void sendRegisterWorkerResponse(RequestID id,
+                                          int workerID,
+                                          boolean result,
+                                          String reason) {
 
     JobMasterAPI.RegisterWorkerResponse response =
         JobMasterAPI.RegisterWorkerResponse.newBuilder()
             .setWorkerID(workerID)
             .setResult(result)
+            .setReason(reason == null ? "" : reason)
             .build();
 
     rrServer.sendResponse(id, response);

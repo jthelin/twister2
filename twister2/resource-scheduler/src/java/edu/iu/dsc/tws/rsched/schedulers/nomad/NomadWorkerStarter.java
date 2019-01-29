@@ -263,7 +263,9 @@ public final class NomadWorkerStarter {
     JMWorkerAgent jobMasterAgent = JMWorkerAgent.createJMWorkerAgent(cfg,
         workerInfo, masterHost, masterPort, numberContainers);
     LOG.log(Level.INFO, String.format("Connecting to job master %s:%d", masterHost, masterPort));
-    jobMasterAgent.startThreaded();
+
+    //TODO: send correct fromFailure parameter to startThreaded method
+    jobMasterAgent.startThreaded(false);
     // No need for sending workerStarting message anymore
     // that is called in startThreaded method
 

@@ -37,10 +37,11 @@ message Ping {
 // a worker can be any one of these states
 enum WorkerState {
     STARTING = 0;
-    RUNNING = 1;
-    COMPLETED = 2;
-    ERROR = 3;
-    UNASSIGNED = 4;
+    RESTARTING = 1;
+    RUNNING = 2;
+    COMPLETED = 3;
+    ERROR = 4;
+    UNASSIGNED = 5;
 }
 
 message NodeInfo {
@@ -66,12 +67,17 @@ message WorkerInfo {
 
 // this message is sent when the worker is about to start
 // it registers itself with the job master
+// the field "fromFailure" is false when the worker initially starts and registers,
+//    it is true, when the worker rejoins after a failure
 // its status in job master becomes: STARTING when this message is received
 message RegisterWorker {
     oneof idRequired {
         int32 workerID = 1;
     }
-    WorkerInfo workerInfo = 2;
+    oneof fromFailureRequired {
+        bool fromFailure = 2;
+    }
+    WorkerInfo workerInfo = 3;
 }
 
 message RegisterWorkerResponse {
@@ -81,6 +87,7 @@ message RegisterWorkerResponse {
     oneof resultRequired {
         bool result = 2;
     }
+    string reason = 3;
 }
 
 // a worker informs the master that its state has changed

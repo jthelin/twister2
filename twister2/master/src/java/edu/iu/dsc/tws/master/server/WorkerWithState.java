@@ -55,6 +55,10 @@ public class WorkerWithState {
     return workerInfo;
   }
 
+  public void setWorkerInfo(JobMasterAPI.WorkerInfo workerInfo) {
+    this.workerInfo = workerInfo;
+  }
+
   public JobMasterAPI.WorkerState getLastState() {
     return states.get(states.size() - 1);
   }

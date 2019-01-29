@@ -352,6 +352,19 @@ public class RRServer {
    */
   private void saveChannel(SocketChannel channel, int senderID, Message message) {
 
+    // if a worker is coming from failure and re-registering,
+    // replace the previous channel with this one
+    if (message instanceof JobMasterAPI.RegisterWorker
+        && ((JobMasterAPI.RegisterWorker) message).getFromFailure()) {
+
+      // first remove the previous channel if any
+      removeWorkerChannel(senderID);
+
+      LOG.fine("Worker is re-registering after failure, previous channel is reset.");
+      workerChannels.forcePut(channel, senderID);
+      return;
+    }
+
     // if the channel already exist, do nothing
     if (workerChannels.containsKey(channel)) {
       return;
@@ -362,7 +375,7 @@ public class RRServer {
     // since it does not harm setting again
     if (senderID == CLIENT_ID) {
       clientChannel = channel;
-      LOG.info("Message received from submitting client. Channel set.");
+      LOG.fine("Message received from submitting client. Channel set.");
       return;
     }
 

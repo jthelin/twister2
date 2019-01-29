@@ -142,12 +142,23 @@ public final class K8sWorkerStarter {
         KubernetesContext.namespace(config), jobName, podName, containerName);
     LOG.info("Container Restart Count: " + restartCount);
 
+    boolean fromFailure = false;
+    if (restartCount > 0) {
+      fromFailure = true;
+    }
+
+    if (restartCount == -1) {
+      LOG.severe("Can not get restartCount of the container. "
+          + "Assuming that it is coming fromFailure. ");
+      fromFailure = true;
+    }
+
     // construct JMWorkerAgent
     jobMasterAgent = JMWorkerAgent.createJMWorkerAgent(config, workerInfo, jobMasterIP,
         JobMasterContext.jobMasterPort(config), job.getNumberOfWorkers());
 
     // start JMWorkerAgent
-    jobMasterAgent.startThreaded();
+    jobMasterAgent.startThreaded(fromFailure);
 
     // we will be running the Worker, send running message
     jobMasterAgent.sendWorkerRunningMessage();
