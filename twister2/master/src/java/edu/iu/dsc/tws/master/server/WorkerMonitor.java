@@ -65,9 +65,6 @@ public class WorkerMonitor implements MessageHandler {
   private boolean jobMasterAssignsWorkerIDs;
   private int numberOfWorkers;
 
-  // a flag to shaw whether allWorkersRegistered message is sent
-  private boolean sentAllWorkersRegistered = false;
-
   private TreeMap<Integer, WorkerWithState> workers;
   private HashMap<Integer, RequestID> waitList;
 

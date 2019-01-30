@@ -231,9 +231,12 @@ public class UploaderForJob extends Thread {
       }
     }
 
-    if (!isJobScalable() || !allTransferred) {
-      stopUploader();
-    }
+    // we don't stop the uploader even if the job is not scalable
+    // because, if pods fails and they are relocated,
+    // they need the job package to restart successfully
+//    if (!isJobScalable() || !allTransferred) {
+//      stopUploader();
+//    }
 
     return allTransferred;
   }
