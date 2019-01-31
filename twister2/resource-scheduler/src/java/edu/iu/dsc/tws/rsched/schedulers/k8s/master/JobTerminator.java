@@ -22,16 +22,14 @@ public class JobTerminator implements IJobTerminator {
   private KubernetesController controller;
   private String namespace;
 
-  public JobTerminator(String namespace) {
-    this.namespace = namespace;
-    controller = new KubernetesController();
-    controller.init(namespace);
+  public JobTerminator(KubernetesController controller) {
+    this.controller = controller;
   }
 
   @Override
   public boolean terminateJob(String jobName) {
     // delete the StatefulSets for workers
-    ArrayList<String> ssNameLists = controller.getStatefulSetsForJobWorkers(jobName);
+    ArrayList<String> ssNameLists = controller.getStatefulSetsForJobWorkers();
     boolean ssForWorkersDeleted = true;
     for (String ssName: ssNameLists) {
       ssForWorkersDeleted &= controller.deleteStatefulSet(ssName);
@@ -42,22 +40,40 @@ public class JobTerminator implements IJobTerminator {
     boolean serviceForWorkersDeleted = controller.deleteService(serviceName);
 
     // delete the job master service
+    // if Job Master runs in client, no service is started
+    // so, there may not be a service for job aster
     String jobMasterServiceName = KubernetesUtils.createJobMasterServiceName(jobName);
-    boolean serviceForJobMasterDeleted = controller.deleteService(jobMasterServiceName);
-
-    // delete the persistent volume claim
-    String pvcName = KubernetesUtils.createPersistentVolumeClaimName(jobName);
-    boolean pvcDeleted = controller.deletePersistentVolumeClaim(pvcName);
+    boolean serviceForJobMasterDeleted = true;
+    if (controller.existService(jobMasterServiceName)) {
+      serviceForJobMasterDeleted = controller.deleteService(jobMasterServiceName);
+    }
 
     // last delete the job master StatefulSet
+    // if Job Master runs in client, no statefulset is started for job master
+    // first check whether there is a ss created
     String jobMasterStatefulSetName = KubernetesUtils.createJobMasterStatefulSetName(jobName);
-    boolean ssForJobMasterDeleted =
-        controller.deleteStatefulSet(jobMasterStatefulSetName);
+    boolean ssForJobMasterDeleted = true;
+    if (controller.existStatefulSet(jobMasterStatefulSetName)) {
+      ssForJobMasterDeleted = controller.deleteStatefulSet(jobMasterStatefulSetName);
+    }
+
+    // delete the persistent volume claim
+    // peristent volume is optional
+    // first check whether there is a pvc created
+    String pvcName = KubernetesUtils.createPersistentVolumeClaimName(jobName);
+    boolean pvcDeleted = true;
+    if (controller.existPersistentVolumeClaim(pvcName)) {
+      pvcDeleted = controller.deletePersistentVolumeClaim(pvcName);
+    }
+
+    String cmName = KubernetesUtils.createConfigMapName(jobName);
+    boolean cmDeleted = controller.deleteConfigMap(cmName);
 
     return ssForWorkersDeleted
         && serviceForWorkersDeleted
         && serviceForJobMasterDeleted
         && pvcDeleted
-        && ssForJobMasterDeleted;
+        && ssForJobMasterDeleted
+        && cmDeleted;
   }
 }

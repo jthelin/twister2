@@ -16,6 +16,7 @@ import java.util.ArrayList;
 public class JobSubmissionStatus {
   private boolean serviceForWorkersCreated;
   private boolean serviceForJobMasterCreated;
+  private boolean configMapCreated;
   private boolean pvcCreated;
   private ArrayList<String> createdStatefulSetNames = new ArrayList<>();
 
@@ -37,6 +38,10 @@ public class JobSubmissionStatus {
     return pvcCreated;
   }
 
+  public boolean isConfigMapCreated() {
+    return configMapCreated;
+  }
+
   public void setServiceForWorkersCreated(boolean serviceForWorkersCreated) {
     this.serviceForWorkersCreated = serviceForWorkersCreated;
   }
@@ -51,6 +56,10 @@ public class JobSubmissionStatus {
 
   public void setPvcCreated(boolean pvcCreated) {
     this.pvcCreated = pvcCreated;
+  }
+
+  public void setConfigMapCreated(boolean cmCreated) {
+    this.configMapCreated = cmCreated;
   }
 
 }

@@ -205,6 +205,15 @@ public final class KubernetesUtils {
     return createJobMasterStatefulSetName(jobName) + "-0";
   }
 
+  /**
+   * create ConfigMap name for the given job name
+   * add a suffix to job name
+   * @return
+   */
+  public static String createConfigMapName(String jobName) {
+    return jobName + "-cm";
+  }
+
   public static String getLocalAddress() {
     try {
       return InetAddress.getLocalHost().getHostAddress();

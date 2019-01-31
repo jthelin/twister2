@@ -11,6 +11,7 @@
 //  limitations under the License.
 package edu.iu.dsc.tws.rsched.schedulers.k8s.worker;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Map;
@@ -30,6 +31,7 @@ import edu.iu.dsc.tws.rsched.core.SchedulerContext;
 import edu.iu.dsc.tws.rsched.schedulers.k8s.K8sEnvVariables;
 import edu.iu.dsc.tws.rsched.schedulers.k8s.KubernetesConstants;
 import edu.iu.dsc.tws.rsched.schedulers.k8s.KubernetesContext;
+import edu.iu.dsc.tws.rsched.schedulers.k8s.KubernetesController;
 import edu.iu.dsc.tws.rsched.schedulers.k8s.PodWatchUtils;
 import edu.iu.dsc.tws.rsched.utils.JobUtils;
 import static edu.iu.dsc.tws.common.config.Context.JOB_ARCHIVE_DIRECTORY;
@@ -43,6 +45,7 @@ public final class K8sWorkerStarter {
   private static int workerID = -1; // -1 means, not initialized
   private static JobMasterAPI.WorkerInfo workerInfo;
   private static JMWorkerAgent jobMasterAgent;
+  private static KubernetesController controller;
   private static String jobName = null;
   private static JobAPI.Job job = null;
   private static JobAPI.ComputeResource computeResource = null;
@@ -137,21 +140,31 @@ public final class K8sWorkerStarter {
         + "hostIP(nodeIP): " + hostIP + "\n"
     );
 
-    // get restart count
-    int restartCount = PodWatchUtils.getContainerRestartCount(
-        KubernetesContext.namespace(config), jobName, podName, containerName);
-    LOG.info("Container Restart Count: " + restartCount);
+    // initialize the controller to talk to Kubernetes master
+    controller = new KubernetesController(KubernetesContext.namespace(config), jobName);
+    try {
+      controller.initialize();
+    } catch (IOException e) {
+      String failMessage = "Could not initialize K8sPodController to talk to Kubernetes master.";
+      throw new RuntimeException(failMessage, e);
+    }
 
+    int startCount = controller.getStartCount(workerID);
     boolean fromFailure = false;
-    if (restartCount > 0) {
+
+    // if startCount is -1, worker is starting for the first time
+    // it will set the startCount as 1
+    if (startCount == -1) {
+      controller.addStartCount(workerID, 1);
+
+      // if startCount is more than 0, the worker has started before,
+      // it is coming from failure
+    } else if (startCount > 0) {
       fromFailure = true;
+      controller.updateStartCount(workerID, startCount + 1);
     }
 
-    if (restartCount == -1) {
-      LOG.severe("Can not get restartCount of the container. "
-          + "Assuming that it is coming fromFailure. ");
-      fromFailure = true;
-    }
+    LOG.info("Worker start Count: " + startCount);
 
     // construct JMWorkerAgent
     jobMasterAgent = JMWorkerAgent.createJMWorkerAgent(config, workerInfo, jobMasterIP,

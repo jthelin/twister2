@@ -23,6 +23,7 @@
 //  limitations under the License.
 package edu.iu.dsc.tws.examples.internal.jobmaster;
 
+import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.UnknownHostException;
 import java.nio.file.Paths;
@@ -81,8 +82,15 @@ public final class JobMasterExample {
     JobMasterAPI.NodeInfo jobMasterNode = NodeInfoUtils.createNodeInfo(ip, null, null);
 
     String host = "localhost";
-    KubernetesController controller = new KubernetesController();
-    controller.init(KubernetesContext.namespace(config));
+    KubernetesController controller =
+        new KubernetesController(KubernetesContext.namespace(config), job.getJobName());
+    try {
+      controller.initialize();
+    } catch (IOException e) {
+      String failMessage = "Could not initialize K8sPodController to talk to Kubernetes master.";
+      throw new RuntimeException(failMessage, e);
+    }
+
     K8sScaler k8sScaler = new K8sScaler(config, job, controller);
 
     JobMaster jobMaster = new JobMaster(config, host, null, job, jobMasterNode, k8sScaler);

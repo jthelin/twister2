@@ -26,17 +26,17 @@ public class K8sScaler implements IScalerPerCluster {
 
   private JobAPI.Job job;
   private Config config;
-  private KubernetesController k8sController;
+  private KubernetesController controller;
 
   // replicas and workersPerPod values for scalable compute resource (scalable statefulSet)
   private String scalableSSName;
   private int replicas;
   private int workersPerPod;
   private int computeResourceIndex;
+  private int numberOfWorkers;
 
-
-  public K8sScaler(Config config, JobAPI.Job job, KubernetesController k8sController) {
-    this.k8sController = k8sController;
+  public K8sScaler(Config config, JobAPI.Job job, KubernetesController controller) {
+    this.controller = controller;
     this.job = job;
     this.config = config;
 
@@ -47,6 +47,8 @@ public class K8sScaler implements IScalerPerCluster {
 
     scalableSSName = KubernetesUtils.createWorkersStatefulSetName(
         job.getJobName(), job.getComputeResourceCount() - 1);
+
+    this.numberOfWorkers = job.getNumberOfWorkers();
   }
 
   @Override
@@ -80,12 +82,14 @@ public class K8sScaler implements IScalerPerCluster {
 
     int podsToAdd = instancesToAdd / workersPerPod;
 
-    boolean scaledUp = k8sController.patchStatefulSet(scalableSSName, replicas + podsToAdd);
+    boolean scaledUp = controller.patchStatefulSet(scalableSSName, replicas + podsToAdd);
     if (!scaledUp) {
       return false;
     }
 
     replicas = replicas + podsToAdd;
+
+    numberOfWorkers += instancesToAdd;
 
     return true;
   }
@@ -111,13 +115,20 @@ public class K8sScaler implements IScalerPerCluster {
       return false;
     }
 
-    boolean scaledDown = k8sController.patchStatefulSet(scalableSSName, replicas - podsToRemove);
+    boolean scaledDown = controller.patchStatefulSet(scalableSSName, replicas - podsToRemove);
     if (!scaledDown) {
       return false;
     }
 
+    // remove start count parameters from job ConfigMap
+    for (int id = numberOfWorkers - 1; id > numberOfWorkers - instancesToRemove - 1; id--) {
+      LOG.info("Will remove startCount for workerID: " + id);
+      controller.removeStartCount(id);
+    }
+
     // update replicas
     replicas = replicas - podsToRemove;
+    numberOfWorkers -= instancesToRemove;
 
     return true;
   }

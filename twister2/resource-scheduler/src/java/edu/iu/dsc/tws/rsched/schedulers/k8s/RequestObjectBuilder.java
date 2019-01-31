@@ -26,6 +26,7 @@ import edu.iu.dsc.tws.rsched.uploaders.scp.ScpContext;
 
 import io.kubernetes.client.custom.Quantity;
 import io.kubernetes.client.models.V1Affinity;
+import io.kubernetes.client.models.V1ConfigMap;
 import io.kubernetes.client.models.V1Container;
 import io.kubernetes.client.models.V1ContainerPort;
 import io.kubernetes.client.models.V1EmptyDirVolumeSource;
@@ -140,7 +141,7 @@ public final class RequestObjectBuilder {
 
     V1PodTemplateSpec template = new V1PodTemplateSpec();
     V1ObjectMeta templateMetaData = new V1ObjectMeta();
-    HashMap<String, String> labels = new HashMap<String, String>();
+    HashMap<String, String> labels = new HashMap<>();
     labels.put(KubernetesConstants.SERVICE_LABEL_KEY, serviceLabel);
 
     String jobPodsLabel = KubernetesUtils.createJobPodsLabel(jobName);
@@ -663,4 +664,35 @@ public final class RequestObjectBuilder {
     pvc.setSpec(pvcSpec);
     return pvc;
   }
+
+  /**
+   * create a ConfigMap object
+   * It will have start counts for workers
+   * @return
+   */
+  public static V1ConfigMap createConfigMap(int numberOfWorkers) {
+    String configMapName = KubernetesUtils.createConfigMapName(jobName);
+
+    V1ConfigMap configMap = new V1ConfigMap();
+    configMap.apiVersion("v1");
+    configMap.setKind("ConfigMap");
+
+    // construct and set metadata
+    V1ObjectMeta meta = new V1ObjectMeta();
+    meta.setName(configMapName);
+
+    // set a label for ConfigMap
+    HashMap<String, String> labels = new HashMap<>();
+    String jobPodsLabel = KubernetesUtils.createJobPodsLabel(jobName);
+    labels.put(KubernetesConstants.TWISTER2_JOB_PODS_KEY, jobPodsLabel);
+    meta.setLabels(labels);
+
+    configMap.setMetadata(meta);
+
+    // initially, we put this unused item to create parameter map
+    configMap.putDataItem("NUMBER_OF_WORKERS", "" + numberOfWorkers);
+
+    return configMap;
+  }
+
 }

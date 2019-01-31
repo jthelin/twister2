@@ -11,6 +11,7 @@
 //  limitations under the License.
 package edu.iu.dsc.tws.rsched.schedulers.k8s.master;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.logging.Logger;
@@ -88,10 +89,16 @@ public final class JobMasterStarter {
     LOG.info("NodeInfo for JobMaster: " + nodeInfo);
 
     String namespace = KubernetesContext.namespace(config);
-    JobTerminator jobTerminator = new JobTerminator(namespace);
 
-    KubernetesController controller = new KubernetesController();
-    controller.init(KubernetesContext.namespace(config));
+    KubernetesController controller = new KubernetesController(namespace, jobName);
+    try {
+      controller.initialize();
+    } catch (IOException e) {
+      String failMessage = "Could not initialize K8sPodController to talk to Kubernetes master.";
+      throw new RuntimeException(failMessage, e);
+    }
+
+    JobTerminator jobTerminator = new JobTerminator(controller);
     K8sScaler k8sScaler = new K8sScaler(config, job, controller);
 
     // start JobMaster
