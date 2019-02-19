@@ -380,6 +380,13 @@ public class KubernetesLauncher implements ILauncher, IJobTerminator {
             + "\n++++++++++++++++++ Aborting submission ++++++++++++++++++");
         return false;
       }
+
+      try {
+        LOG.info("Waiting 2 seconds after job master statefulset create request...");
+        Thread.sleep(2000);
+      } catch (InterruptedException e) {
+        LOG.severe("Wait interrupted. Should not be a problem. ");
+      }
     }
 
     // let the transfer threads know that we are about to submit the StatefulSets
