@@ -14,17 +14,17 @@ package edu.iu.dsc.tws.master.dashclient.messages;
 import java.util.List;
 import java.util.logging.Logger;
 
-public class ScaledWorkers {
-  private static final Logger LOG = Logger.getLogger(ScaledWorkers.class.getName());
+public class ScaleWorkers {
+  private static final Logger LOG = Logger.getLogger(ScaleWorkers.class.getName());
 
   private int change;
   private int numberOfWorkers;
   private List<Integer> killedWorkers;
 
-  public ScaledWorkers() {
+  public ScaleWorkers() {
   }
 
-  public ScaledWorkers(int change, int numberOfWorkers, List<Integer> killedWorkers) {
+  public ScaleWorkers(int change, int numberOfWorkers, List<Integer> killedWorkers) {
     this.change = change;
     this.numberOfWorkers = numberOfWorkers;
     this.killedWorkers = killedWorkers;

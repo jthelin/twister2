@@ -23,7 +23,7 @@ import javax.ws.rs.core.Response;
 import edu.iu.dsc.tws.master.dashclient.messages.JobStateChange;
 import edu.iu.dsc.tws.master.dashclient.messages.RegisterJob;
 import edu.iu.dsc.tws.master.dashclient.messages.RegisterWorker;
-import edu.iu.dsc.tws.master.dashclient.messages.ScaledWorkers;
+import edu.iu.dsc.tws.master.dashclient.messages.ScaleWorkers;
 import edu.iu.dsc.tws.master.dashclient.messages.WorkerStateChange;
 import edu.iu.dsc.tws.master.dashclient.models.JobState;
 import edu.iu.dsc.tws.proto.jobmaster.JobMasterAPI;
@@ -117,9 +117,9 @@ public class DashboardClient {
    * if it is higher, it means some instances of that resource added
    * @return
    */
-  public boolean scaledWorkers(int change, int numberOfWorkers, List<Integer> killedWorkers) {
+  public boolean scaleWorkers(int change, int numberOfWorkers, List<Integer> killedWorkers) {
 
-    ScaledWorkers scaledWorkers = new ScaledWorkers(change, numberOfWorkers, killedWorkers);
+    ScaleWorkers scaleWorkers = new ScaleWorkers(change, numberOfWorkers, killedWorkers);
 
     String path = "jobs/" + jobID + "/scale/";
 
@@ -127,15 +127,15 @@ public class DashboardClient {
         .target(dashHost)
         .path(path)
         .request(MediaType.APPLICATION_JSON)
-        .post(Entity.json(scaledWorkers));
+        .post(Entity.json(scaleWorkers));
 
     if (response.getStatus() == 200) {
-      LOG.info("ScaledWorkers message sent to Dashboard successfully."
+      LOG.info("ScaleWorkers message sent to Dashboard successfully."
           + " change: " + change
           + " numberOfWorkers: " + numberOfWorkers);
       return true;
     } else {
-      LOG.severe("ScaledWorkers message could not be sent to Dashboard. Response: "
+      LOG.severe("ScaleWorkers message could not be sent to Dashboard. Response: "
           + response.toString());
       return false;
     }

@@ -342,7 +342,7 @@ public class WorkerMonitor implements MessageHandler {
 
     // send Scale message to the dashboard
     if (dashClient != null) {
-      dashClient.scaledWorkers(
+      dashClient.scaleWorkers(
           scaledMessage.getChange(), scaledMessage.getNumberOfWorkers(), killedWorkers);
     }
   }
@@ -372,7 +372,7 @@ public class WorkerMonitor implements MessageHandler {
 
     // send Scaled message to the dashboard
     if (dashClient != null) {
-      dashClient.scaledWorkers(
+      dashClient.scaleWorkers(
           scaledMessage.getChange(), scaledMessage.getNumberOfWorkers(), new LinkedList<Integer>());
     }
 
